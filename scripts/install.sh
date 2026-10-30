@@ -162,16 +162,8 @@ EOF
 }
 
 install_pm2_systemd() {
-  local pm2_env="$PM2_HOME/env"
-  mkdir -p "$PM2_HOME"
-
-  # PM2 systemd init script (auto-start PM2 on boot, keep app alive)
-  info "Generating PM2 systemd service (webpanel)..."
-  pm2 startup systemd -u "$USER" --hp "$HOME" >/dev/null 2>&1
-  pm2 save --force >/dev/null 2>&1
-  # Ensure PM2 is running under the app user
-  su -s /bin/bash "$USER" -c "pm2 resurrect" >/dev/null 2>&1 || true
-  ok "PM2 systemd service created and app added to resurrect list"
+  info "Skipping PM2 startup; using direct systemd service for reliability on Linux."
+  ok "Direct systemd service mode enabled"
 }
 
 build_frontend() {
@@ -183,7 +175,7 @@ build_frontend() {
 
 create_systemd_unit() {
   local unit="/etc/systemd/system/${APP_NAME}.service"
-  info "Creating systemd service unit $unit ..."
+  info "Creating direct Node.js systemd service unit $unit ..."
   cat > "$unit" <<EOF
 [Unit]
 Description=WebPanel - Linux System Management Panel
@@ -191,14 +183,14 @@ After=network.target
 
 [Service]
 Type=simple
-User=$USER
-Group=$USER
+User=${USER}
+Group=${USER}
 WorkingDirectory=${APP_DIR}
 Environment=NODE_ENV=production
 Environment=PORT=${PORT}
 Environment=HOST=0.0.0.0
-ExecStart=/usr/bin/pm2-runtime /opt/webpanel/ecosystem.config.cjs
-Restart=on-failure
+ExecStart=/usr/bin/node ${APP_DIR}/src/start.js
+Restart=always
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
@@ -214,22 +206,19 @@ EOF
 start_service() {
   local unit="/etc/systemd/system/${APP_NAME}.service"
   if [ -f "$unit" ]; then
-    systemctl restart "${APP_NAME}.service" >/dev/null 2>&1 || {
-      warn "systemctl restart Failed (systemd may not be running in this container). Falling back to PM2 start..."
-      su -s /bin/bash "$USER" -c "pm2 start /opt/webpanel/ecosystem.config.cjs --env production" >/dev/null 2>&1 || true
-      su -s /bin/bash "$USER" -c "pm2 save" >/dev/null 2>&1 || true
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    systemctl enable --now "${APP_NAME}.service" >/dev/null 2>&1 || {
+      warn "systemctl could not start the service in this environment; you can start it manually later."
       return
     }
     sleep 2
     if systemctl is-active --quiet "${APP_NAME}.service"; then
       ok "Service started via systemd: ${APP_NAME}.service"
     else
-      warn "systemd service not active; PM2 is running independently."
+      warn "systemd service did not become active. Check the logs with journalctl -u ${APP_NAME}.service"
     fi
   else
-    warn "No systemd unit found — starting via PM2 directly."
-    su -s /bin/bash "$USER" -c "pm2 start /opt/webpanel/ecosystem.config.cjs --env production" >/dev/null 2>&1 || true
-    su -s /bin/bash "$USER" -c "pm2 save" >/dev/null 2>&1 || true
+    warn "No systemd unit found; start the app manually with: cd ${APP_DIR} && PORT=${PORT} HOST=0.0.0.0 npm start"
   fi
 }
 
@@ -241,16 +230,13 @@ print_results() {
   echo ""
   echo "  Web panel:         http://$(hostname -i 2>/dev/null || echo 'localhost'):${PORT}"
   echo "  API base:          http://$(hostname -i 2>/dev/null || echo 'localhost'):${PORT}/api"
-  echo "  PM2 process list:"
-  su -s /bin/bash "$USER" -c "pm2 list" 2>/dev/null || true
   echo ""
   echo "  Logs (systemd):    journalctl -u ${APP_NAME} -f"
-  echo "  Logs (PM2):        su - $USER -c 'pm2 logs ${APP_NAME}'"
-  echo "  PM2 monit:         su - $USER -c 'pm2 monit'"
+  echo "  Status:            systemctl status ${APP_NAME}"
+  echo "  Restart:           systemctl restart ${APP_NAME}"
+  echo "  Stop:              systemctl stop ${APP_NAME}"
   echo ""
-  echo "  To update later:   cd ${APP_DIR} && git pull && npm ci && pm2 restart ${APP_NAME}"
-  echo "  To stop:           systemctl stop ${APP_NAME}   (or: pm2 stop ${APP_NAME})"
-  echo "  To start:          systemctl start ${APP_NAME}  (or: pm2 start ${APP_NAME})"
+  echo "  To update later:   cd ${APP_DIR} && git pull && npm ci && systemctl restart ${APP_NAME}"
   echo ""
 }
 
