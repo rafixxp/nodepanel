@@ -75,18 +75,5 @@ app.services = {
   website: (await import("../services/website.js")).websiteService,
 };
 
-const start = async () => {
-  try {
-    await app.listen({ port: config.port, host: config.host });
-    app.log.info(`WebPanel listening on http://${config.host}:${config.port}`);
-    app.log.info(`SPA frontend served from ${distRoot}`);
-  } catch (err) {
-    app.log.error(err);
-    process.exit(1);
-  }
-};
-
-start();
-
 export default app;
 

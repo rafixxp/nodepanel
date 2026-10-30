@@ -131,7 +131,7 @@ install_deps() {
 }
 
 create_pm2_config() {
-  local ecosystem="$APP_DIR/ecosystem.config.js"
+  local ecosystem="$APP_DIR/ecosystem.config.cjs"
   cat > "$ecosystem" <<EOF
 module.exports = {
   apps: [
@@ -197,7 +197,7 @@ WorkingDirectory=${APP_DIR}
 Environment=NODE_ENV=production
 Environment=PORT=${PORT}
 Environment=HOST=0.0.0.0
-ExecStart=/usr/bin/pm2-runtime /opt/webpanel/ecosystem.config.js
+ExecStart=/usr/bin/pm2-runtime /opt/webpanel/ecosystem.config.cjs
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
@@ -216,7 +216,7 @@ start_service() {
   if [ -f "$unit" ]; then
     systemctl restart "${APP_NAME}.service" >/dev/null 2>&1 || {
       warn "systemctl restart Failed (systemd may not be running in this container). Falling back to PM2 start..."
-      su -s /bin/bash "$USER" -c "pm2 start /opt/webpanel/ecosystem.config.js --env production" >/dev/null 2>&1 || true
+      su -s /bin/bash "$USER" -c "pm2 start /opt/webpanel/ecosystem.config.cjs --env production" >/dev/null 2>&1 || true
       su -s /bin/bash "$USER" -c "pm2 save" >/dev/null 2>&1 || true
       return
     }
@@ -228,7 +228,7 @@ start_service() {
     fi
   else
     warn "No systemd unit found — starting via PM2 directly."
-    su -s /bin/bash "$USER" -c "pm2 start /opt/webpanel/ecosystem.config.js --env production" >/dev/null 2>&1 || true
+    su -s /bin/bash "$USER" -c "pm2 start /opt/webpanel/ecosystem.config.cjs --env production" >/dev/null 2>&1 || true
     su -s /bin/bash "$USER" -c "pm2 save" >/dev/null 2>&1 || true
   fi
 }

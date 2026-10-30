@@ -34,6 +34,7 @@
     "socket.io": "^4.8.0"
   },
   "scripts": {
+    "start": "node src/start.js",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview --port 4173"
